@@ -1,8 +1,9 @@
 defprotocol Dna.Storage do
-  @spec init(t, actor_name) :: {:ok, t} | {:ok, t, opaque :: term}
+  @type actor_name :: Dna.Types.ActorName.t()
+  @spec init(t, actor_name) :: {:sync, t} | {:async, t, opaque :: term}
   def init(t, actor_name)
-  @spec persist(t) :: {:ok, t} | {:ok, t, opaque :: term}
+  @spec persist(t) :: {:sync, t} | {:async, t, opaque :: term}
   def persist(t)
-  @spec on_opaque(t, opaque :: term) :: {:ok, t} | {:ok, t, opaque :: term}
-  def on_opaque(t, opaque)
+  @spec on_opaque(t, opaque :: term, msg :: term) :: {:sync, t} | {:async, t, opaque :: term}
+  def on_opaque(t, opaque, msg)
 end

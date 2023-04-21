@@ -1,68 +1,66 @@
 defmodule Dna.Server.ActorInstance do
   use GenServer
   alias Dna.Storage
+  alias Dna.Types.ActorName
 
   defmodule S do
+    @type event :: Dna.Actor.event()
     @type pending :: %{reference() => atom()}
     @type status ::
-            {:pending_storage, pending :: pending()}
-            | {:pending_storage, {pending :: pending(), continue :: term()}}
+            {:pending_storage, pending :: pending(), continue :: term()}
             | :idle
-    @type event ::
-            {:call, from :: GenServer.from(), msg :: term()}
-            | {:cast, msg :: term()}
-            | {:info, msg :: term()}
-    defstruct [:module, :actor_name, :buffer, :status, :storage, :state]
+
+    defstruct [:actor, :actor_name, :buffer, :buffer_size, :status, :storage, :state]
 
     @type t() :: %__MODULE__{
-            module: module(),
+            actor: module(),
             actor_name: Dna.Types.ActorName.t(),
             buffer: [event()],
+            buffer_size: non_neg_integer(),
             status: status(),
-            storage: [{atom(), term()}],
+            storage: %{atom() => term()},
             state: term()
           }
-    def new(module, actor_name) do
+    def new(actor, actor_name) do
       %__MODULE__{
-        module: module,
+        actor: actor,
         actor_name: actor_name,
-        buffer: []
+        buffer: [],
+        buffer_size: 0
       }
     end
   end
 
-  defp get_module(_module_id), do: __MODULE__
-
-  def start_link({{namespace, module_id, name}, registry_name}) do
-    module = get_module(module_id)
-
+  def start_link({actor, {namespace, module_id, name}, registry_name}) do
     GenServer.start_link(
       __MODULE__,
-      %{namespace: namespace, module_id: module_id, name: name, module: module},
+      %{
+        actor_name: %ActorName{namespace: namespace, module_id: module_id, name: name},
+        actor: actor
+      },
       name: registry_name
     )
   end
 
   def init(context) do
-    status = :init_storage
-    state = S.new(context.module, context.actor_name)
-    {:ok, state, {:continue, status}}
+    state = S.new(context.actor, context.actor_name)
+    {:ok, state, {:continue, :init_storage}}
   end
 
-  def handle_continue(:init_storage, %S{actor_name: an, module: module} = s) do
-    storage = module.storage()
+  def handle_continue(:init_storage, %S{actor_name: an, actor: actor} = s) do
+    storage = actor.storage()
 
     case storage_run(storage, fn si -> Storage.init(si, an) end) do
       {:ok, storage} ->
         {:noreply, %S{s | storage: storage}, {:continue, :init}}
 
       {:pending, storage, pending} ->
-        {:noreply, %S{s | storage: storage, status: {:pending_storage, {pending, {:continue, :init}}}}}
+        {:noreply, %S{s | storage: storage, status: {:pending_storage, pending, :init}}}
     end
   end
 
-  def handle_continue(:init, %S{actor_name: an, module: module, storage: storage} = s) do
-    case module.init(an, storage) do
+  def handle_continue(:init, %S{actor_name: an, actor: actor, storage: storage} = s) do
+    case actor.init(an, storage) do
       {:ok, state} ->
         {:noreply, %S{s | state: state, status: :idle}}
 
@@ -73,47 +71,104 @@ defmodule Dna.Server.ActorInstance do
 
           {:pending, storage, pending} ->
             {:noreply,
-             %S{s | state: state, storage: storage, status: {:pending_storage, pending}}}
+             %S{
+               s
+               | state: state,
+                 storage: storage,
+                 status: {:pending_storage, pending, :handle_events}
+             }}
         end
     end
   end
 
-  def handle_call(msg, _from, %{module: module} = context) do
-    IO.puts("call: #{inspect(context)}")
-    {:noreply, context}
+  def handle_continue({:after_persist, events}, %S{actor: actor, state: state} = s) do
+    {:ok, state} = actor.after_persist(events, state)
+    %S{s | state: state} |> actor_events_handler()
   end
 
-  def handle_cast(msg, %{module: module} = context) do
-    IO.puts("cast: #{inspect(context)}")
-    {:noreply, context}
-  end
+  def handle_continue(:handle_events, s), do: actor_events_handler(s)
 
-  def handle_info({opaque, msg}, %S{storage: storage, status: {:pending_storage, %{^opaque => name}, continue}} = s) do
+  def handle_cast(msg, s), do: buffer({:cast, msg}, s) |> actor_events_handler()
+  def handle_call(msg, from, s), do: buffer({:call, msg, from}, s) |> actor_events_handler()
+
+  def handle_info(
+        {opaque, msg},
+        %S{storage: storage, status: {:pending_storage, pending, continue}} = s
+      )
+      when is_map_key(pending, opaque) do
+    %{^opaque => name} = pending
     %{^name => si} = storage
     pending = Map.delete(pending, opaque)
-    s = case Storage.on_opaque(si) do
-      {:ok, si} ->
-        case Kernel.map_size(pending) do
-          0 -> %S{s | storage: %{storage | ^name => si}, status: :idle}
-          _ -> %S{s | storage: %{storage | ^name => si}, status: {:pending_storage, pending, continue}}
-        end
-        {%{storage | ^name => si}, pending}
-      {:ok, si, opaque} -> {%{storage | ^name => si}, Map.put(pending, opaque, name)}
-    end
-    s = case pending do
-      p when map_size(p) == 0 -> {:noreply, %S{s | storage: storage, status: :idle}, continue}
-      _ -> {:noreply, %S{s | storage: storage, status: {:pending_storage, pending, continue}}}
+
+    {storage, pending} =
+      case Storage.on_opaque(si, opaque, msg) do
+        {:sync, si} -> {%{storage | name => si}, pending}
+        {:async, si, opaque} -> {%{storage | name => si}, Map.put(pending, opaque, name)}
+      end
+
+    case Kernel.map_size(pending) do
+      0 ->
+        {:noreply, %S{s | storage: storage, status: :idle}, {:continue, continue}}
+
+      _ ->
+        {:noreply, %S{s | storage: storage, status: {:pending_storage, pending, continue}}}
     end
   end
 
-  defp buffer(msg, %S{buffer: buffer} = s), do: %S{s | buffer: [msg | buffer]}
+  def handle_info(msg, s), do: buffer({:info, msg}, s) |> actor_events_handler()
 
-  defp storage_run(storage, f, merge \\ storage) do
+  defp buffer(msg, %S{buffer: buffer, buffer_size: bs} = s),
+    do: %S{s | buffer: [msg | buffer], buffer_size: bs + 1}
+
+  defp actor_events_handler(%S{buffer_size: 0} = s), do: {:noreply, s}
+
+  defp actor_events_handler(
+         %S{status: :idle, actor: actor, buffer: buffer, buffer_size: bs, storage: storage, state: state} = s
+       ) do
+    {events, buffer} = Enum.split(buffer, 1000)
+    bs = if bs > 1000, do: bs - 1000, else: 0
+    events = Enum.reverse(events)
+    continue = {:after_persist, events}
+
+    case actor.handle_events(events, state, storage) do
+      {:ok, state} ->
+        {:noreply, %S{s | buffer: buffer, buffer_size: bs, state: state, status: :idle},
+         {:continue, continue}}
+
+      {:ok, state, storage_change} ->
+        case storage_run(storage_change, fn si -> Storage.persist(si) end, storage) do
+          {:ok, storage} ->
+            {:noreply,
+             %S{s | buffer: buffer, buffer_size: bs, state: state, storage: storage, status: :idle},
+             {:continue, continue}}
+
+          {:pending, storage, pending} ->
+            {:noreply,
+             %S{
+               s
+               | buffer: buffer,
+                 buffer_size: bs,
+                 state: state,
+                 storage: storage,
+                 status: {:pending_storage, pending, continue}
+             }}
+        end
+    end
+  end
+
+  defp actor_events_handler(s), do: {:noreply, s}
+
+  defp storage_run(storage, f, merge \\ nil) do
+    merge = if is_nil(merge), do: storage, else: merge
+
     r =
-      Enum.reduce(storage, {merge, pending}, fn {name, s}, {storage, pending} ->
+      Enum.reduce(storage, {merge, %{}}, fn {name, s}, {storage, pending} ->
         case f.(s) do
-          {:ok, s} -> {%{storage | ^name => s}, pending}
-          {:ok, s, opaque} -> {%{storage | ^name => s}, Map.put(pending, opaque, name)}
+          {:sync, s} ->
+            {%{storage | name => s}, pending}
+
+          {:async, s, opaque} ->
+            {%{storage | name => s}, Map.put(pending, opaque, name)}
         end
       end)
 
@@ -124,17 +179,17 @@ defmodule Dna.Server.ActorInstance do
   end
 end
 
-defmodule Dna.Server.Actor do
-  @type event :: {:call, from, msg} | {:cast, msg} | {:info, msg}
-  @type reply :: {:reply, to, msg}
-  def init(context) do
-  end
-
-  def handle_events(events, storage, cache) do
-    {replies, state_change, cache, for_after}
-  end
-
-  def after_persist(events, cache, for_after) do
-    {:done, cache}
-  end
-end
+# defmodule Dna.Server.Actor do
+#  @type event :: {:call, from, msg} | {:cast, msg} | {:info, msg}
+#  @type reply :: {:reply, to, msg}
+#  def init(context) do
+#  end
+#
+#  def handle_events(events, storage, cache) do
+#    {replies, state_change, cache, for_after}
+#  end
+#
+#  def after_persist(events, cache, for_after) do
+#    {:done, cache}
+#  end
+# end

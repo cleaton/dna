@@ -26,8 +26,8 @@ defmodule Dna.Server.Partition do
     Registry.lookup(registry, key)
   end
 
-  def try_claim(key, existing) do
-    GenServer.call(pm(__MODULE__, partition(key)), {:try_claim, key, existing})
+  def try_claim(actor, key, existing) do
+    GenServer.call(pm(__MODULE__, partition(key)), {:try_claim, actor, key, existing})
   end
 
   @impl true
@@ -49,28 +49,28 @@ defmodule Dna.Server.Partition do
   end
 
   @impl true
-  def handle_call({:try_claim, key, existing}, _from, %{registry: registry, me: me, supervisor: supervisor} = state) do
+  def handle_call({:try_claim, actor, key, existing}, _from, %{registry: registry, me: me, supervisor: supervisor} = state) do
     result = case Registry.lookup(registry, key) do
       [{pid, _meta}] -> {:ok, pid}
-      [] -> try_claim(supervisor, registry, key, me, existing)
+      [] -> try_claim(actor, supervisor, registry, key, me, existing)
     end
     {:reply, result, state}
   end
 
-  defp try_claim(supervisor, registry, key, me, me) do
-    {:ok, start_child(supervisor, registry, key)}
+  defp try_claim(actor, supervisor, registry, key, me, me) do
+    {:ok, start_child(actor, supervisor, registry, key)}
   end
 
-  defp try_claim(supervisor, registry, key, me, dead_or_missing) do
-    case Storage.Actors.claim(key, me, dead_or_missing) do
-      :ok -> {:active, start_child(supervisor, registry, key)}
+  defp try_claim(actor, supervisor, registry, key, me, dead_or_missing) do
+    case DB.Actors.claim(key, me, dead_or_missing) do
+      :ok -> {:active, start_child(actor, supervisor, registry, key)}
       _ -> {:error, :claim_failed}
     end
   end
 
-  defp start_child(supervisor, registry, key) do
+  defp start_child(actor, supervisor, registry, key) do
     registry_key = {:via, Registry, {registry, key}}
-    case DynamicSupervisor.start_child(supervisor, {Dna.Server.ActorInstance, {key, registry_key}}) do
+    case DynamicSupervisor.start_child(supervisor, {Dna.Server.ActorInstance, {actor, key, registry_key}}) do
       {:ok, pid} -> pid
       {:error, {:already_started, pid}} -> pid
     end

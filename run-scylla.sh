@@ -6,3 +6,4 @@ docker start dna-scylla || \
 while ! nc -z localhost 9042; do sleep 1; done
 # create table if not exists
 docker exec dna-scylla cqlsh -e "CREATE KEYSPACE IF NOT EXISTS dna WITH REPLICATION = {'class' : 'SimpleStrategy', 'replication_factor' : 1};"
+docker exec dna-scylla cqlsh -e "CREATE KEYSPACE IF NOT EXISTS test WITH REPLICATION = {'class' : 'SimpleStrategy', 'replication_factor' : 1};"

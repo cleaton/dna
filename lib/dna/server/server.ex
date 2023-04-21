@@ -2,18 +2,21 @@ defmodule Dna.Server do
   use Supervisor
   alias Dna.DB
   alias Dna.Server.Partition
-  alias Dna.Server.Request
   import Dna.Server.Utils
 
   @max_retries 10
 
-  # {namespace, module_id, name}
+  # {namespace, actor_id, name}
   @type key :: {String.t(), integer(), String.t()}
+  @type call_types :: :call | :cast
 
-  def execute(type, key, msg), do: execute(type, key, msg, @max_retries)
-  def execute(_type, _key, _msg, 0), do: {:error, :max_retries}
+  def call(actor, key, msg), do: execute(actor, :call, key, msg)
+  def cast(actor, key, msg), do: execute(actor, :cast, key, msg)
+  def execute(actor, type, key, msg), do: execute(actor, type, key, msg, @max_retries)
+  def execute(actor, _type, _key, _msg, 0), do: {:error, :max_retries}
 
-  def execute(type, key, msg, retries) do
+  @spec execute(module(), call_types(), key(), any(), pos_integer()) :: any
+  def execute(actor, type, key, msg, retries) do
     me = Dna.Server.Cluster.server()
     retries = retries - 1
 
@@ -24,49 +27,56 @@ defmodule Dna.Server do
             do_type(type, pid, msg)
 
           [] ->
-            schedule(key, me)
-            |> post_schedule(type, key, msg, retries)
+            schedule(actor, key, me)
+            |> post_schedule(actor, type, key, msg, retries)
         end
 
       :not_found ->
-        schedule(key)
-        |> post_schedule(type, key, msg, retries)
+        schedule(actor, key)
+        |> post_schedule(actor, type, key, msg, retries)
 
       server ->
         current_node = Node.self()
 
         status = Dna.Server.Cluster.server_status(server)
+        IO.inspect(server)
         IO.inspect(status)
         case status do
           :dead ->
-            schedule(key, server)
-            |> post_schedule(type, key, msg, retries)
+            Cachex.del(:dna_actors, key)
+            schedule(actor, key, server)
+            |> post_schedule(actor, type, key, msg, retries)
 
           {:alive, ^current_node} ->
             # Missconfigured cluster or node failure?, try and wait timeout
-            Process.sleep(@max_retries - retries * 100)
-            execute(type, key, msg, retries)
+            Process.sleep((@max_retries - retries) * 100)
+            execute(actor, type, key, msg, retries)
 
           {:alive, node} ->
-            :erpc.call(node, Dna.Server, :execute, [type, key, msg, retries])
+            :erpc.call(node, Dna.Server, :execute, [actor, type, key, msg, retries])
         end
     end
   end
 
-  def schedule(key, existing_server \\ nil) do
+  def schedule(actor, key, existing_server \\ nil) do
     # TODO allow to override the default scheduling strategy, for example hash based on the key
-    Partition.try_claim(key, existing_server)
+    Partition.try_claim(actor, key, existing_server)
   end
 
-  defp post_schedule({:ok, pid}, type, _key, msg, _retries), do: do_type(type, pid, msg)
-  defp post_schedule({:error, _}, type, key, msg, retries), do: execute(type, key, msg, retries)
+  defp post_schedule({:ok, pid}, _actor, type, _key, msg, _retries), do: do_type(type, pid, msg)
+  defp post_schedule({:error, _}, actor, type, key, msg, retries), do: execute(actor, type, key, msg, retries)
 
   defp do_type(:call, pid, msg), do: GenServer.call(pid, msg)
   defp do_type(:cast, pid, msg), do: GenServer.cast(pid, msg)
 
-  defp server_lookup({namespace, module_id, name}) do
-    # TODO add cache
-    Storage.Actors.where_is(namespace, module_id, name)
+  defp server_lookup(key) do
+    {_, res} = Cachex.fetch(:dna_actors, key, fn ({namespace, module_id, name}) ->
+      case DB.Actors.where_is(namespace, module_id, name) do
+        :not_found -> {:ignore, :not_found}
+        res -> {:commit, res}
+      end
+    end)
+    res
   end
 
   ###### PARTITION SUPERVISOR ######

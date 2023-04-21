@@ -1,12 +1,14 @@
-defmodule Dna.Db.Storage.KV do
+defmodule Dna.DB.Storage.Kv do
   alias ExScylla.Session
   alias ExScylla.Statement.Batch
+  alias Dna.Types.ActorName
   use Dna.DB
 
   @node_table """
     CREATE TABLE IF NOT EXISTS storage_kv (
       namespace text,
       module_id int,
+      name text,
       key blob,
       value blob,
       size int,
@@ -33,7 +35,7 @@ defmodule Dna.Db.Storage.KV do
     {:ok, Map.merge(statements, %{session: session})}
   end
 
-  def list({namespace, module_id, name}, prefix, limit) do
+  def list(%ActorName{namespace: namespace, module_id: module_id, name: name}, prefix, limit) do
     limit =
       case limit do
         limit when limit > 1000 -> 1000
@@ -62,7 +64,11 @@ defmodule Dna.Db.Storage.KV do
     |> Enum.map(fn %{columns: [blob: key, blob: value]} -> {key, value} end)
   end
 
-  def read({namespace, module_id, name}, key) do
+  @spec read(
+          Dna.Types.ActorName.t(),
+          key :: String.t()
+        ) :: {:error, :not_found} | {:ok, any}
+  def read(%ActorName{namespace: namespace, module_id: module_id, name: name}, key) do
     %{
       session: session,
       read: read
@@ -77,7 +83,7 @@ defmodule Dna.Db.Storage.KV do
     end
   end
 
-  def mutate({namespace, module_id, name}, operations, async_opaque \\ nil) do
+  def mutate(%ActorName{namespace: namespace, module_id: module_id, name: name}, operations, async_opaque \\ nil) do
     %{
       session: session,
       write: write,

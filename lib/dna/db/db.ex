@@ -28,23 +28,16 @@ defmodule Dna.DB do
   alias ExScylla.SessionBuilder
   use GenServer
 
-  defp do_ls_r(paths, result \\ [])
-  defp do_ls_r([], result), do: result
-  defp do_ls_r([path | rest], result) do
-    case File.dir?(path) do
-      true -> do_ls_r(File.ls!(path) ++ rest, result)
-      false -> do_ls_r(rest, [path | result])
-    end
-  end
-
-
   defmacrop storage_modules() do
-    do_ls_r([__ENV__.file |> Path.dirname()])
-    |> tap(fn files -> IO.inspect(files) end)
+    prefix = __ENV__.file |> Path.dirname()
+    Path.wildcard("#{prefix}/**/*.ex")
+    |> Enum.map(&(String.replace_prefix(&1, "#{prefix}/", "")))
     |> Enum.filter(&(!String.equivalent?(&1, "db.ex")))
     |> Enum.map(&(String.replace_suffix(&1, ".ex", "")))
-    |> Enum.map(&Macro.camelize/1)
-    |> Enum.map(&(Module.concat([__MODULE__, &1])))
+    |> Enum.map(&(String.split(&1, "/")))
+    |> Enum.map(fn m -> Enum.map(m, &Macro.camelize/1) end)
+    |> Enum.map(&(Module.concat([__MODULE__ | &1])))
+    |> tap(fn files -> IO.inspect(files) end)
   end
 
   @spec start_link(any) :: :ignore | {:error, any} | {:ok, pid}

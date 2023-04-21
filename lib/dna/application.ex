@@ -6,6 +6,7 @@ defmodule Dna.Application do
   def start(_type, _args) do
 
     children = [
+      {Cachex, name: :dna_actors, expiration: {:expiration, 60_000, 10_000, true}},
       {Dna.DB, []},
       {Dna.Server.Cluster, []},
       {Dna.Server, []},
