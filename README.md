@@ -135,7 +135,7 @@ mix run bench/run.exs
 * Update heartbeat records for live node detection
 * Periodically check for new nodes and connect to them
 * Filter out dead nodes based on heartbeat and server_id
-* Assumes nodes have synchronized time (e.g., via NTP)
+* Cluster assumes that nodes have synchronized time (e.g., via NTP)
 
 ### Actor registration
 * Register actor names to nodes, ensuring uniqueness with ScyllaDB LWT
@@ -146,8 +146,8 @@ mix run bench/run.exs
 * Initialize actors on first message or forward to the correct node if already active
 * Actors interact with storage modules for data persistence
 * Utilize multiple storage modules for different data structures and layouts
-* Ensure atomic operation with single storage modules supporting atomic batch writes
-* Maintain actor state consistency while allowing for potential unavailability during network splits
+* Ensure atomic operation with single storage module supporting atomic batch writes
+* Prioritize actor state consistency over availability in case of network splits
 
 ## Installation
 -- TODO --
