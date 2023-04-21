@@ -102,9 +102,10 @@ IO.puts "Single actor put, total: #{total_events} in #{time_micro / 1_000_000} s
 IO.puts "Put per second: #{total_events / (time_micro / 1_000_000)}"
 ```
 on my old system:
-Intel(R) Core(TM) i7-7700K CPU @ 4.20GHz (4 cores / 8 threads)
-24GB RAM
-Samsung_SSD_860_EVO_500GB (!SATA!)
+* Intel(R) Core(TM) i7-7700K CPU @ 4.20GHz (4 cores / 8 threads)
+* 24GB RAM
+* Samsung_SSD_860_EVO_500GB (!SATA!)
+
 ```
 Single actor put, total: 1000000 in 2.959737 seconds
 Put per second: 337867.8578535863
