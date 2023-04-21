@@ -3,6 +3,10 @@ defmodule Dna.Server.ActorInstance do
   alias Dna.Storage
   alias Dna.Types.ActorName
 
+  @max_batch_size 1000
+
+  # TODO: should we block or drop messages if the buffer is full?
+
   defmodule S do
     @type event :: Dna.Actor.event()
     @type pending :: %{reference() => atom()}
@@ -125,8 +129,8 @@ defmodule Dna.Server.ActorInstance do
   defp actor_events_handler(
          %S{status: :idle, actor: actor, buffer: buffer, buffer_size: bs, storage: storage, state: state} = s
        ) do
-    {events, buffer} = Enum.split(buffer, 1000)
-    bs = if bs > 1000, do: bs - 1000, else: 0
+    {events, buffer} = Enum.split(buffer, @max_batch_size)
+    bs = if bs > @max_batch_size, do: bs - @max_batch_size, else: 0
     events = Enum.reverse(events)
     continue = {:after_persist, events}
 
@@ -178,18 +182,3 @@ defmodule Dna.Server.ActorInstance do
     end
   end
 end
-
-# defmodule Dna.Server.Actor do
-#  @type event :: {:call, from, msg} | {:cast, msg} | {:info, msg}
-#  @type reply :: {:reply, to, msg}
-#  def init(context) do
-#  end
-#
-#  def handle_events(events, storage, cache) do
-#    {replies, state_change, cache, for_after}
-#  end
-#
-#  def after_persist(events, cache, for_after) do
-#    {:done, cache}
-#  end
-# end

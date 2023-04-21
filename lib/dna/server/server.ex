@@ -2,7 +2,6 @@ defmodule Dna.Server do
   use Supervisor
   alias Dna.DB
   alias Dna.Server.Partition
-  import Dna.Server.Utils
 
   @max_retries 10
 
@@ -13,7 +12,7 @@ defmodule Dna.Server do
   def call(actor, key, msg), do: execute(actor, :call, key, msg)
   def cast(actor, key, msg), do: execute(actor, :cast, key, msg)
   def execute(actor, type, key, msg), do: execute(actor, type, key, msg, @max_retries)
-  def execute(actor, _type, _key, _msg, 0), do: {:error, :max_retries}
+  def execute(_actor, _type, _key, _msg, 0), do: {:error, :max_retries}
 
   @spec execute(module(), call_types(), key(), any(), pos_integer()) :: any
   def execute(actor, type, key, msg, retries) do
