@@ -1,6 +1,4 @@
-# dna
-
-Durable Named Actors (DNA)
+# Durable Named Actors (DNA)
 
 Building block for stateful distributed applications, inspired by Cloudflares Durable Objects.
 Built ontop of scylladb, using the scylla-elixir driver.
