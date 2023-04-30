@@ -1,0 +1,18 @@
+# fly.toml app configuration file generated for scylla-dna-demo on 2023-04-28T19:16:45+08:00
+#
+# See https://fly.io/docs/reference/configuration/ for information about how to use this file.
+#
+
+app = "scylla-dna-demo"
+primary_region = "nrt"
+
+[deploy]
+  strategy = "immediate"
+
+[env]
+  MEMORY_LIMIT = "200M"
+
+# fly volumes create scylla_data --no-encryption --region nrt --size 1 --app scylla-dna-demo
+[[mounts]]
+  source = "scylla_data"
+  destination = "/var/lib/scylla"

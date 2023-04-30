@@ -1,6 +1,6 @@
 # Durable Named Actors (DNA)
 
-DNA is an innovative building block for stateful distributed applications, taking inspiration from Cloudflare's Durable Objects. This library streamlines the development of distributed applications while offering a simple, user-friendly API for creating stateful actors.
+DNA is a powerful building block for stateful distributed applications, taking inspiration from Cloudflare's Durable Objects. This library streamlines the development of distributed applications while offering a simple, user-friendly API for creating stateful actors.
 
 ## Key advantages
 * Unique actor naming across clusters to guarantee single-instance operation

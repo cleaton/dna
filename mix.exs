@@ -7,7 +7,8 @@ defmodule Dna.MixProject do
       version: "0.1.0",
       elixir: "~> 1.14",
       start_permanent: Mix.env() == :prod,
-      deps: deps()
+      deps: deps(),
+      package: package()
     ]
   end
 
@@ -15,7 +16,16 @@ defmodule Dna.MixProject do
   def application do
     [
       extra_applications: [:logger, :crypto],
-      mod: {Dna.Application, []}
+      mod: {Dna.Application, []},
+    ]
+  end
+
+  defp package do
+    [
+      files: ["lib", "mix.exs", "README*", "LICENSE*", ".formatter.exs", "config", "priv"],
+      maintainers: ["Your Name"],
+      licenses: ["Apache-2.0"],
+      links: %{"GitHub" => "https://github.com/username/mylib"}
     ]
   end
 
@@ -25,7 +35,7 @@ defmodule Dna.MixProject do
       {:ex_scylla, git: "https://github.com/cleaton/ex_scylla.git", branch: "next"},
       {:cachex, "~> 3.6"},
       {:dialyxir, "~> 1.3", only: [:dev], runtime: false},
-      {:benchee, "~> 1.0", only: [:dev], runtime: false},
+      {:benchee, "~> 1.0", only: [:bench], runtime: false},
       # {:dep_from_hexpm, "~> 0.3.0"},
       # {:dep_from_git, git: "https://github.com/elixir-lang/my_dep.git", tag: "0.1.0"}
     ]

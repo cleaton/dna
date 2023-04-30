@@ -8,8 +8,8 @@ defmodule Dna.Storage.KV do
           changes: [change]
         }
 
-  def new() do
-    %__MODULE__{}
+  def new(actor_name \\  nil) do
+    %__MODULE__{key: actor_name}
   end
 
   defimpl Dna.Storage do

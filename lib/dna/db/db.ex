@@ -54,9 +54,12 @@ defmodule Dna.DB do
   end
 
   defp start_session(ets_table) do
+    scylla = Application.fetch_env!(:dna, :scylla)
+    known_nodes = Keyword.get(scylla, :known_nodes) |> String.split(",")
+    keyspace = Keyword.get(scylla, :keyspace)
     {:ok, session} = SessionBuilder.new()
-                    |> SessionBuilder.known_node("127.0.0.1:9042")
-                    |> SessionBuilder.use_keyspace("dna", false)
+                    |> SessionBuilder.known_nodes(known_nodes)
+                    |> SessionBuilder.use_keyspace(keyspace, false)
                     |> SessionBuilder.build()
     :ets.insert(ets_table, {:session, session})
     session

@@ -47,6 +47,7 @@ defmodule Dna.Server.ActorInstance do
   end
 
   def init(context) do
+    Process.flag(:message_queue_data, :off_heap)
     state = S.new(context.actor, context.actor_name)
     {:ok, state, {:continue, :init_storage}}
   end
