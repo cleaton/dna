@@ -19,6 +19,13 @@ DNA is built on top of ScyllaDB, utilizing the ex_scylla driver for optimal perf
 
 Please note that this project is a work in progress. I welcome your contributions, suggestions, and collaboration.
 
+## Architecture
+[See architecture doc](docs/architecture.md)
+
+## Demo
+A stateful phoenix app that uses DNA: https://dna-demo.fly.dev/
+The source code for the demo can be found in `examples/phoenix_iot`
+
 ## Example
 ```elixir
 defmodule MyActor do
