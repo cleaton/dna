@@ -45,13 +45,12 @@ defmodule PhoenixIotWeb.IotLive do
     ~H"""
     <div class="min-h-screen bg-indigo-100 flex items-center justify-center">
     <div class="w-full max-w-md p-6 bg-white shadow-md rounded">
-      <div class="text-center mb-8">
-        <h1 class="text-4xl font-bold text-indigo-800">Popular Attractions</h1>
-        <%= if @city != "" do %>
-          <h2 class="text-2xl text-indigo-600">in <%= @city %></h2>
-        <% end %>
-        <p class="text-gray-600">Real-time visitor insights</p>
-      </div>
+    <div class="text-center mb-8">
+    <h1 class="text-4xl  font-bold text-indigo-800">Real-time Crowd Levels</h1>
+    <%= if @city != "" do %>
+      <p class="text-2xl text-indigo-500">in <%= @city %></p>
+    <% end %>
+    </div>
       <div class="bg-white shadow-md rounded p-8">
         <div class="mb-6">
           <form phx-change="select_city">
