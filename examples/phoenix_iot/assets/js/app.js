@@ -22,23 +22,34 @@ import {Socket} from "phoenix"
 import {LiveSocket} from "phoenix_live_view"
 import topbar from "../vendor/topbar"
 
-let Hooks = {
-    ShowError: {
-        mounted() {
-            this.el.classList.add('opacity-0', 'translate-y-full', 'fixed', 'top-0', 'left-0', 'w-full');
-        
-            setTimeout(() => {
-              this.el.classList.remove('opacity-0');
-              this.el.classList.add('transition', 'duration-300', 'ease-out', 'opacity-100', 'translate-y-0');
-            }, 100);
-        
-            setTimeout(() => {
-              this.el.classList.remove('opacity-100');
-              this.el.classList.add('opacity-0', 'translate-y-full');
-            }, 3000);
-          }
-    }
-}
+const Hooks = {};
+
+Hooks.ProgressBar = {
+  mounted() {
+    this.el.classList.add('transition-all', 'duration-1000', 'ease-out');
+    const widthPercentage = this.el.style.width;
+    this.el.style.width = '0';
+    setTimeout(() => {
+      this.el.style.width = widthPercentage;
+    }, 50);
+  },
+};
+
+Hooks.ErrorDisplay = {
+  show(transition) {
+    this.el.classList.remove(transition);
+    this.el.classList.add('fade-in-scale');
+  },
+
+  hide(transition) {
+    this.el.classList.remove('fade-in-scale');
+    this.el.classList.add(transition);
+  },
+
+  mounted() {
+    this.show('fade-out-scale');
+  },
+};
 
 
 let csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute("content")
