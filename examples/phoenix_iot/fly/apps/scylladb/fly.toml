@@ -1,10 +1,7 @@
-# fly.toml app configuration file generated for scylla-dna-demo on 2023-04-28T19:16:45+08:00
-#
-# See https://fly.io/docs/reference/configuration/ for information about how to use this file.
-#
-
+# fly deploy fly/apps/scylladb
 app = "scylla-dna-demo"
 primary_region = "nrt"
+
 
 [deploy]
   strategy = "immediate"

@@ -51,7 +51,9 @@ if config_env() == :prod do
       ip: {0, 0, 0, 0, 0, 0, 0, 0},
       port: port
     ],
-    secret_key_base: secret_key_base
+    secret_key_base: secret_key_base,
+    fly_alloc_id: System.get_env("FLY_ALLOC_ID") || "-",
+    fly_region: System.get_env("FLY_REGION") || "-"
 
   # ## SSL Support
   #

@@ -1,17 +1,16 @@
-# fly.toml app configuration file generated for dna-demo on 2023-04-28T13:54:15+08:00
-#
-# See https://fly.io/docs/reference/configuration/ for information about how to use this file.
-#
-
+# fly deploy -c fly/apps/dna-demo/fly.toml
 app = "dna-demo"
 primary_region = "nrt"
 
-# see scylla-deployment/ first
+# see fly/apps/scylladb first
 # flyctl secrets set SECRET_KEY_BASE=xxxxxxxx  # from mix phx.gen.secret
 [env]
   KNOWN_NODES = "nrt.scylla-dna-demo.internal:9042"
   PHX_SERVER = "true"
   PHX_HOST = "dna-demo.fly.dev"
+
+[build]
+  dockerfile = "./../../../Dockerfile"
 
 [deploy]
   strategy = "immediate"
