@@ -1,5 +1,5 @@
 # Use the official ScyllaDB Docker image as the base
-FROM scylladb/scylla:latest
+FROM scylladb/scylla:5.4
 # remove scripts we don't need to reduce memory
 RUN cd /etc/supervisord.conf.d/ && rm rsyslog.conf scylla-jmx.conf sshd-server.conf scylla-node-exporter.conf scylla-housekeeping.conf
 

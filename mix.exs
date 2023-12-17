@@ -5,7 +5,7 @@ defmodule Dna.MixProject do
     [
       app: :dna,
       version: "0.1.0",
-      elixir: "~> 1.14",
+      elixir: "~> 1.15",
       start_permanent: Mix.env() == :prod,
       deps: deps(),
       package: package()
@@ -15,7 +15,7 @@ defmodule Dna.MixProject do
   # Run "mix help compile.app" to learn about applications.
   def application do
     [
-      extra_applications: [:logger, :crypto],
+      extra_applications: [:logger, :crypto, :os_mon],
       mod: {Dna.Application, []},
     ]
   end
@@ -23,16 +23,16 @@ defmodule Dna.MixProject do
   defp package do
     [
       files: ["lib", "mix.exs", "README*", "LICENSE*", ".formatter.exs", "config", "priv"],
-      maintainers: ["Your Name"],
+      maintainers: ["Jesper Lundgren"],
       licenses: ["Apache-2.0"],
-      links: %{"GitHub" => "https://github.com/username/mylib"}
+      links: %{"GitHub" => "https://github.com/cleaton/dna"}
     ]
   end
 
   # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
-      {:ex_scylla, git: "https://github.com/cleaton/ex_scylla.git", branch: "next"},
+      {:ex_scylla, "~> 0.5.0"},
       {:cachex, "~> 3.6"},
       {:dialyxir, "~> 1.3", only: [:dev], runtime: false},
       {:benchee, "~> 1.0", only: [:bench], runtime: false},

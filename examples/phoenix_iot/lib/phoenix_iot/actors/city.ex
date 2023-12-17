@@ -53,6 +53,10 @@ defmodule PhoenixIot.Actors.City do
     alias PhoenixIot.Actors.City.Attraction
     @actor_id 0
 
+    def get_status(city) do
+      Server.call(City, actor_name(city), :get_status)
+    end
+
     @spec delete_attraction(city :: String.t(), String.t()) :: :ok
     def delete_attraction(city, attraction_id) do
       Server.call(City, actor_name(city), {:delete_attraction, attraction_id})
@@ -92,9 +96,12 @@ defmodule PhoenixIot.Actors.City do
   # Initialize in-memory state for the actor
   def init(actorname, storage) do
     attractions = KV.list(storage.kv, "a_")
-    IO.puts("attractions: #{inspect(attractions)}")
-    started = System.system_time(:millisecond)
-    {:ok, %{replies: [], actorname: actorname, count: length(attractions), started: started}}
+    status = %{
+      fly_region: Application.get_env(:phoenix_iot, PhoenixIotWeb.Endpoint)[:fly_region],
+      fly_alloc_id: Application.get_env(:phoenix_iot, PhoenixIotWeb.Endpoint)[:fly_alloc_id],
+      started: DateTime.utc_now() |> DateTime.to_string()
+    }
+    {:ok, %{replies: [], actorname: actorname, count: length(attractions), status: status}}
   end
 
   # handle :cast, :call, :info events. return {:ok, new_state, new_storage}
@@ -107,7 +114,6 @@ defmodule PhoenixIot.Actors.City do
           {kv, reply, state} -> {kv, [reply | replies], state}
         end
       end)
-    IO.inspect(kv)
     {:ok, %{state | replies: Enum.reverse(replies)}, %{kv: kv}}
   end
 
@@ -160,6 +166,10 @@ defmodule PhoenixIot.Actors.City do
         # NOT FOUND
         {kv, {from, :ok, nil}, state}
     end
+  end
+
+  defp do_event(kv, {:call, :get_status, from}, %{status: status} = state) do
+    {kv, {from, status, nil}, state}
   end
 
   defp broadcast(_city, nil), do: :ok

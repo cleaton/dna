@@ -28,10 +28,21 @@ defmodule PhoenixIotWeb.IotLive do
     else
       City.subscribe_attractions(city)
       attractions = City.list_attractions(city)
+      status = %{
+        title: "Client & Phoenix socket info",
+        #fly_client_ip: get_connect_info(socket, :fly_client_ip), need to figure out headers
+        #fly_region_client: get_connect_info(socket, :fly_region), need to figure out headers
+        fly_region: Application.get_env(:phoenix_iot, PhoenixIotWeb.Endpoint)[:fly_region],
+        fly_alloc_id: Application.get_env(:phoenix_iot, PhoenixIotWeb.Endpoint)[:fly_alloc_id],
+      }
+
+      city_status = City.get_status(city) |> Map.put(:title, "City DNA Actor info")
 
       socket =
         socket
         |> stream(:attractions, attractions)
+        |> assign(:phoenix_status, status)
+        |> assign(:city_status, city_status)
         |> assign(:count, length(attractions))
         |> assign(:city, city)
         |> assign(:to_edit, nil)
@@ -43,7 +54,7 @@ defmodule PhoenixIotWeb.IotLive do
 
   def render(assigns) do
     ~H"""
-    <div class="min-h-screen bg-indigo-100 flex items-center justify-center">
+    <div class="min-h-screen bg-indigo-100 flex flex-col items-center justify-center">
     <div class="w-full max-w-md p-6 bg-white shadow-md rounded">
     <div class="text-center mb-8">
     <h1 class="text-4xl  font-bold text-indigo-800">Real-time Crowd Levels</h1>
@@ -132,7 +143,26 @@ defmodule PhoenixIotWeb.IotLive do
     <%= @error.msg %>
     </div>
     <% end %>
-    </div>
+    <!-- Debug Information -->
+      <div class="w-full max-w-4xl mt-8 mx-2 sm:mx-auto p-6 bg-indigo-100">
+        <div class="flex flex-col sm:flex-row sm:space-x-4 space-y-4 sm:space-y-0">
+          <div class="flex-1 p-4 bg-white shadow-md rounded-md">
+            <h2 class="font-bold mb-4 text-indigo-700"><%= @phoenix_status.title %></h2>
+            <%= for {key, value} <- @phoenix_status, key != :title do %>
+              <p class="mb-2"><strong class="text-indigo-600"><%= to_string(key) %>:</strong> <%= to_string(value) %></p>
+            <% end %>
+          </div>
+
+          <div class="flex-1 p-4 bg-white shadow-md rounded-md">
+            <h2 class="font-bold mb-4 text-indigo-700"><%= @city_status.title %></h2>
+            <%= for {key, value} <- @city_status, key != :title do %>
+              <p class="mb-2"><strong class="text-indigo-600"><%= to_string(key) %>:</strong> <%= to_string(value) %></p>
+            <% end %>
+          </div>
+        </div>
+      </div>
+</div>
+
     """
   end
 

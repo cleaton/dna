@@ -59,8 +59,8 @@ defmodule Dna.DB do
     keyspace = Keyword.get(scylla, :keyspace)
     {:ok, session} = SessionBuilder.new()
                     |> SessionBuilder.known_nodes(known_nodes)
-                    |> SessionBuilder.use_keyspace(keyspace, false)
                     |> SessionBuilder.build()
+    Session.use_keyspace(session, keyspace, true)
     :ets.insert(ets_table, {:session, session})
     session
   end

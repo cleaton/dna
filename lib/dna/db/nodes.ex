@@ -19,7 +19,9 @@ defmodule Dna.DB.Nodes do
     node_update:
       "INSERT INTO nodes (cluster, created_at, id, node, heartbeat, load, draining) VALUES (?, ?, ?, ?, ?, ?, ?);",
     node_query:
-      "SELECT created_at, id, node, heartbeat, load, draining FROM nodes WHERE cluster = ? AND heartbeat >= ? ALLOW FILTERING;"
+      "SELECT created_at, id, node, heartbeat, load, draining FROM nodes WHERE cluster = ?;",
+    node_delete:
+      "DELETE FROM nodes WHERE cluster = ? AND created_at = ? AND id = ?;"
   ]
   @impl true
   def setup(session) do
@@ -48,17 +50,28 @@ defmodule Dna.DB.Nodes do
     :ok
   end
 
-  def list(cluster, earliest_heartbeat) do
+  def delete(cluster, {created_at, id}) do
+    %{
+      session: session,
+      node_delete: nd
+    } = state()
+
+    Task.start(fn ->
+      Session.execute(session, nd,
+          text: cluster,
+          timestamp: created_at,
+          big_int: id
+        )
+    end)
+  end
+
+  def list(cluster) do
     %{
       session: session,
       node_query: nq
     } = state()
 
-    {:ok, %{rows: rows}} =
-      Session.execute(session, nq,
-        text: cluster,
-        big_int: earliest_heartbeat
-      )
+    {:ok, %{rows: rows}} = Session.execute(session, nq, text: cluster)
 
     rows
     |> Enum.map(fn %{
