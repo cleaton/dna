@@ -3,7 +3,7 @@ defmodule Dna.Server.ActorInstance do
   alias Dna.Storage
   alias Dna.Types.ActorName
 
-  @max_batch_size 1000
+  @max_batch_size 100
 
   # TODO: should we block or drop messages if the buffer is full?
 
@@ -86,8 +86,16 @@ defmodule Dna.Server.ActorInstance do
     end
   end
 
-  def handle_continue({:after_persist, events}, %S{actor: actor, state: state} = s) do
-    {:ok, state} = actor.after_persist(events, state)
+  def handle_continue({:after_persist, sync_replies, events}, %S{actor: actor, state: state} = s) do
+    Enum.each(sync_replies, fn {from, msg} -> GenServer.reply(from, msg) end)
+
+    {:ok, state} =
+      if function_exported?(actor, :after_persist, 2) do
+        actor.after_persist(events, state)
+      else
+        {:ok, state}
+      end
+
     %S{s | state: state} |> actor_events_handler()
   end
 
@@ -128,24 +136,47 @@ defmodule Dna.Server.ActorInstance do
   defp actor_events_handler(%S{buffer_size: 0} = s), do: {:noreply, s}
 
   defp actor_events_handler(
-         %S{status: :idle, actor: actor, buffer: buffer, buffer_size: bs, storage: storage, state: state} = s
+         %S{
+           status: :idle,
+           actor: actor,
+           buffer: buffer,
+           buffer_size: bs,
+           storage: storage,
+           state: state
+         } = s
        ) do
     {events, buffer} = Enum.split(buffer, @max_batch_size)
     bs = if bs > @max_batch_size, do: bs - @max_batch_size, else: 0
     events = Enum.reverse(events)
-    continue = {:after_persist, events}
+    has_after_persist? = function_exported?(actor, :after_persist, 2)
+    has_handle_events? = function_exported?(actor, :handle_events, 3)
 
-    case actor.handle_events(events, state, storage) do
-      {:ok, state} ->
+    result =
+      if has_handle_events? do
+        handle_events_case(actor, events, state, storage)
+      else
+        handle_callbacks_case(actor, events, state, storage)
+      end
+
+    case result do
+      {:no_change, state} ->
         {:noreply, %S{s | buffer: buffer, buffer_size: bs, state: state, status: :idle},
-         {:continue, continue}}
+         {:continue, build_handle_continue(has_after_persist?, [], events)}}
 
-      {:ok, state, storage_change} ->
+      {:change, state, storage_change, sync_replies} ->
+        continue = build_handle_continue(has_after_persist?, sync_replies, events)
+
         case storage_run(storage_change, fn si -> Storage.persist(si) end, storage) do
           {:ok, storage} ->
             {:noreply,
-             %S{s | buffer: buffer, buffer_size: bs, state: state, storage: storage, status: :idle},
-             {:continue, continue}}
+             %S{
+               s
+               | buffer: buffer,
+                 buffer_size: bs,
+                 state: state,
+                 storage: storage,
+                 status: :idle
+             }, {:continue, continue}}
 
           {:pending, storage, pending} ->
             {:noreply,
@@ -162,6 +193,64 @@ defmodule Dna.Server.ActorInstance do
   end
 
   defp actor_events_handler(s), do: {:noreply, s}
+
+  defp build_handle_continue(true, sync_replies, _), do: {:after_persist, sync_replies, nil}
+
+  defp build_handle_continue(false, sync_replies, events),
+    do: {:after_persist, sync_replies, events}
+
+  defp handle_events_case(actor, events, state, storage) do
+    case actor.handle_events(events, state, storage) do
+      {:ok, state} ->
+        {:no_change, state}
+
+      {:ok, state, storage_change} ->
+        {:change, state, storage_change, []}
+
+      {:ok, state, storage_change, sync_replies} ->
+        {:change, state, storage_change, sync_replies}
+    end
+  end
+
+  defp handle_callbacks_case(actor, events, state, storage) do
+    {state, storage, change, sync_replies} =
+      Enum.reduce(events, {state, storage, false, []}, fn event,
+                                                          {state, storage, change, sync_replies} ->
+        case event do
+          {:cast, message} ->
+            case actor.handle_cast(message, state, storage) do
+              {:noreply, new_state, storage} -> {new_state, storage, true, sync_replies}
+              {:noreply, new_state} -> {new_state, storage, change, sync_replies}
+            end
+
+          {:call, message, from} ->
+            case actor.handle_call(message, from, state, storage) do
+              {:noreply, new_state, storage} ->
+                {new_state, storage, true, sync_replies}
+
+              {:noreply, new_state} ->
+                {new_state, storage, change, sync_replies}
+
+              {:reply, msg, new_state} ->
+                GenServer.reply(from, msg)
+                {new_state, storage, change, sync_replies}
+
+              {:reply_sync, msg, new_state, storage} ->
+                {new_state, storage, true, [{from, msg} | sync_replies]}
+
+              {:reply_async, msg, new_state, storage} ->
+                GenServer.reply(from, msg)
+                {new_state, storage, true, sync_replies}
+            end
+        end
+      end)
+
+    if change do
+      {:change, state, storage, sync_replies |> Enum.reverse()}
+    else
+      {:no_change, state}
+    end
+  end
 
   defp storage_run(storage, f, merge \\ nil) do
     merge = if is_nil(merge), do: storage, else: merge
