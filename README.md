@@ -79,7 +79,7 @@ defmodule MyActor do
     {:reply_sync, :ok, state, %{kv: KV.write(kv, key, value)}}
   end
 
-  # Storage is eventually persisted (end of each batch, 1~100msg)
+  # Storage not immediately persisted, will persist at end of batch (1~100msg)
   def handle_cast({:put, key, value}, state, %{kv: kv}) do
     {:noreply, state, %{kv: KV.write(kv, key, value)}}
   end
