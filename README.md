@@ -63,40 +63,25 @@ defmodule MyActor do
 
   # Initialize in-memory state for the actor
   def init(_actorname, _storage) do
-    {:ok, %{replies: []}}
+    {:ok, %{}}
   end
 
-  # handle :cast, :call, :info events. return {:ok, new_state, new_storage}
-  # Process events in batches for higher throughput
-  def handle_events(events, %{replies: replies} = state, %{kv: kv}) do
-    {kv, replies} = Enum.reduce(events, {kv, replies}, fn event, {kv, replies} ->
-        case do_event(kv, event) do
-          {kv, nil} -> {kv, replies}
-          {kv, reply} -> {kv, [reply | replies]}
-        end
-    end)
-    {:ok, %{state | replies: Enum.reverse(replies)}, %{kv: kv}}
+  # handle call/cast events. Internally batched for performance
+  # Choose to reply to caller after storage is persisted
+
+  # Reply immediately as no storage is mutated
+  def handle_call({:get, key}, _, state, %{kv: kv}) do
+    {:reply, KV.read(kv, key), state}
   end
 
-  # Perform operations after event mutations have been persisted
-  def after_persist(_events, %{replies: replies} = state) do
-    for {to, msg} <- replies do
-      GenServer.reply(to, msg)
-    end
-    {:ok, %{state | replies: []}}
+  # Reply after storage is persisted (end of each batch, 1~100msg)
+  def handle_call({:put, key, value}, _, state, %{kv: kv}) do
+    {:reply_sync, :ok, state, %{kv: KV.write(kv, key, value)}}
   end
 
-  # Implement event handlers for data storage operations
-  defp do_event(kv, {:call, {:get, key}, from}) do
-    {kv, {from, KV.read(kv, key)}}
-  end
-
-  defp do_event(kv, {:call, {:put, key, val}, from}) do
-    {KV.write(kv, key, val), {from, :ok}}
-  end
-
-  defp do_event(kv, {:cast, {:put, key, val}}) do
-    {KV.write(kv, key, val), nil}
+  # Storage is eventually persisted (end of each batch, 1~100msg)
+  def handle_cast({:put, key, value}, state, %{kv: kv}) do
+    {:noreply, state, %{kv: KV.write(kv, key, value)}}
   end
 end
 ```
