@@ -1,0 +1,4 @@
+# ex_scylla 0.9.1 + scylla-rs 1.5.0: QueryRowsResult::raw_rows_with_metadata is gated on
+# cfg(scylla_unstable) alongside the unstable-nodejs-rs feature (see scylla query_result.rs).
+[build]
+rustflags = ["--cfg", "scylla_unstable"]

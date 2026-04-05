@@ -63,7 +63,7 @@ defmodule BenchActor do
 end
 
 actor_name = "#{System.system_time(:millisecond)}"
-total_events = 1_000_000
+total_events = 10_000_000
 put_data = 0..(total_events - 1)
 {time_micro, _} = :timer.tc(fn ->
   Enum.each(put_data, fn i -> BenchActor.API.put_cast(actor_name, to_string(i), "test") end)
