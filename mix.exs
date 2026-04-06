@@ -32,7 +32,7 @@ defmodule Dna.MixProject do
   # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
-      {:ex_scylla, "~> 0.5.0"},
+      {:ex_scylla, "~> 0.9.1"},
       {:cachex, "~> 3.6"},
       {:dialyxir, "~> 1.3", only: [:dev], runtime: false},
       {:benchee, "~> 1.0", only: [:bench], runtime: false},
